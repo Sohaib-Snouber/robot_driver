@@ -130,10 +130,10 @@ void TaskExecutionNode::createAndPublishTask()
   task_.add(std::move(stage_state_current));
 
     // Close hand
-  auto stage_close_hand = std::make_unique<mtc::stages::MoveTo>("close hand", sampling_planner);
-  stage_close_hand->setGroup(hand_group_name);
-  stage_close_hand->setGoal("close");
-  task_.add(std::move(stage_close_hand));
+  auto stage_close_hand1 = std::make_unique<mtc::stages::MoveTo>("close hand1", sampling_planner);
+  stage_close_hand1->setGroup(hand_group_name);
+  stage_close_hand1->setGoal("close");
+  task_.add(std::move(stage_close_hand1));
   
   // Subtract 10 cm (0.1 meters)
   double distanceToSubtract = 0.1; // 10 cm
@@ -165,7 +165,13 @@ void TaskExecutionNode::createAndPublishTask()
   move_to_target->setGoal(target_pose);
   task_.add(std::move(move_to_target));
 
-/*   // Define the slide pose
+  // Open hand
+  auto stage_open_hand1 = std::make_unique<mtc::stages::MoveTo>("open hand1", sampling_planner);
+  stage_open_hand1->setGroup(hand_group_name);
+  stage_open_hand1->setGoal("open");
+  task_.add(std::move(stage_open_hand1));
+
+  // Define the slide pose
   geometry_msgs::msg::PoseStamped slide_pose = current_target_pose_;
 
   // Move to slide pose
@@ -177,10 +183,10 @@ void TaskExecutionNode::createAndPublishTask()
 
 
   // Close hand
-  auto stage_close_hand = std::make_unique<mtc::stages::MoveTo>("close hand", sampling_planner);
-  stage_close_hand->setGroup(hand_group_name);
-  stage_close_hand->setGoal("close");
-  task_.add(std::move(stage_close_hand));
+  auto stage_close_hand2 = std::make_unique<mtc::stages::MoveTo>("close hand2", sampling_planner);
+  stage_close_hand2->setGroup(hand_group_name);
+  stage_close_hand2->setGoal("close");
+  task_.add(std::move(stage_close_hand2));
 
 
   geometry_msgs::msg::PoseStamped slide2_pose = target_pose;
@@ -192,7 +198,7 @@ void TaskExecutionNode::createAndPublishTask()
   task_.add(std::move(move_to_slide2));
 
 
-  // Define the slide pose
+  // Define the position pose
   auto const position_pose = [message_pose]{
     geometry_msgs::msg::PoseStamped msg;
     msg.header.frame_id = "world";
@@ -211,10 +217,10 @@ void TaskExecutionNode::createAndPublishTask()
   task_.add(std::move(move_to_position));
 
   // open2 hand
-  auto stage_open2_hand = std::make_unique<mtc::stages::MoveTo>("open hand", sampling_planner);
-  stage_open2_hand->setGroup(hand_group_name);
-  stage_open2_hand->setGoal("not_full_open");
-  task_.add(std::move(stage_open2_hand)); */
+  auto stage_open_hand2 = std::make_unique<mtc::stages::MoveTo>("open hand2", sampling_planner);
+  stage_open_hand2->setGroup(hand_group_name);
+  stage_open_hand2->setGoal("not_full_open");
+  task_.add(std::move(stage_open_hand2));
 
   // Initialize the task and publish task details
   try

@@ -249,7 +249,7 @@ private:
         std::vector<double> one_pos(joint_positions.begin(), joint_positions.end());
         one_pos.push_back(1.0);  // velocity
         one_pos.push_back(1.2);  // acceleration
-        one_pos.push_back(0.1);  // blend (5mm tolerance)
+        one_pos.push_back(0.01);  // blend (5mm tolerance)
         robot_path.push_back(one_pos);
       }
 
@@ -269,6 +269,11 @@ private:
         rtde_control_->moveJ(robot_path, true);
       }
 
+      std::this_thread::sleep_for(50ms);
+      while (isRobotMoving()) {
+        std::this_thread::sleep_for(500ms);
+      }
+      RCLCPP_INFO(this->get_logger(), "the stage: %s is finished on real robot", stage.name.c_str());
       std::this_thread::sleep_for(50ms);
     }
     std::this_thread::sleep_for(std::chrono::seconds(1)); // Delay to simulate gripper motion time
