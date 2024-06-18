@@ -17,6 +17,7 @@ public:
   using ProcessTask = action_interfaces::action::ProcessTask;
   using GoalHandleProcessTask = rclcpp_action::ServerGoalHandle<ProcessTask>;
 
+
   explicit ProcessTaskActionServer(const rclcpp::NodeOptions & options = rclcpp::NodeOptions())
     : Node("process_task_action_server", options), ip_("10.130.1.100")
   {
@@ -31,6 +32,9 @@ public:
     rtde_receive_ = std::make_unique<RTDEReceiveInterface>(ip_);
     gripper_ = std::make_unique<RobotiqGripper>(ip_);
 
+    task_details_subscriber_ = this->create_subscription<master_project_msgs::msg::Task>(
+        "task_details", 10, std::bind(&ProcessTaskActionServer::taskDetailsCallback, this, std::placeholders::_1));
+
     // Debug: Print statements for gripper connection and activation
     RCLCPP_INFO(this->get_logger(), "Connecting to gripper...");
     gripper_->connect();
@@ -40,11 +44,18 @@ public:
   }
 
 private:
+  rclcpp::Subscription<master_project_msgs::msg::Task>::SharedPtr task_details_subscriber_;
   rclcpp_action::Server<ProcessTask>::SharedPtr action_server_;
   std::string ip_;
   std::unique_ptr<RTDEControlInterface> rtde_control_;
   std::unique_ptr<RTDEReceiveInterface> rtde_receive_;
   std::unique_ptr<RobotiqGripper> gripper_;
+  master_project_msgs::msg::Task task; 
+
+  void taskDetailsCallback(const master_project_msgs::msg::Task::SharedPtr msg) {
+    RCLCPP_INFO(this->get_logger(), "Received task details: %s", msg->name.c_str());
+    task = *msg;
+  }
 
   rclcpp_action::GoalResponse handle_goal(
     const rclcpp_action::GoalUUID & uuid,
@@ -96,7 +107,7 @@ private:
       // Implement the logic to move the robot based on the task details
       RCLCPP_INFO(this->get_logger(), "Moving the robot based on task details...");
       master_project_msgs::msg::Task task_msg;
-      processTask(task_msg); // Example usage of task processing
+      processTask(task); // Example usage of task processing
     } else if (goal->request_open_gripper) {
       gripperOpen();
     } else if (goal->request_close_gripper) {
@@ -126,9 +137,53 @@ private:
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
     RCLCPP_INFO(this->get_logger(), "Robot has stopped moving.");
+    std::this_thread::sleep_for(std::chrono::seconds(3));
   }
 
-  bool isRobotMoving() {
+  bool isRobotMoving() 
+  {
+    int checks = 5;
+    double tolerance = 1e-4; // Adjust tolerance 0.1 mm
+
+    for (int i = 0; i < checks; ++i) {
+      auto target_q = rtde_receive_->getTargetQ();
+      auto actual_q = rtde_receive_->getActualQ();
+      
+      RCLCPP_INFO(this->get_logger(), "Check %d - Target Q: ", i+1);
+      for (const auto &q : target_q) {
+        RCLCPP_INFO(this->get_logger(), "%f ", q);
+      }
+      RCLCPP_INFO(this->get_logger(), "Actual Q: ");
+      for (const auto &q : actual_q) {
+        RCLCPP_INFO(this->get_logger(), "%f ", q);
+      }
+
+      bool moving = false;
+      for (size_t j = 0; j < target_q.size(); ++j) {
+        double diff = target_q[j] - actual_q[j];
+        if (std::fabs(diff) > tolerance) {
+          RCLCPP_INFO(this->get_logger(), "difference is %f ", diff);
+          RCLCPP_INFO(this->get_logger(), "the defined tolerance is %f ", tolerance);
+          RCLCPP_INFO(this->get_logger(), "Robot is moving");
+          moving = true;
+          break;
+        }
+      }
+
+      if (!moving) {
+        RCLCPP_INFO(this->get_logger(), "Robot is not moving");
+      } else {
+        return true; // If any check finds the robot moving, return true
+      }
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Wait for 100ms between checks
+    }
+
+    // If all checks return false, the robot is not moving
+    return false;
+  }
+
+  /* bool isRobotMoving() {
     auto target_q = rtde_receive_->getTargetQ();
     auto actual_q = rtde_receive_->getActualQ();
     
@@ -141,7 +196,7 @@ private:
       RCLCPP_INFO(this->get_logger(), "%f ", q);
     }
 
-    double tolerance = 1e-4; // Adjust tolerance
+    double tolerance = 4e-5; // Adjust tolerance
     for (size_t i = 0; i < target_q.size(); ++i) {
       if (std::fabs(target_q[i] - actual_q[i]) > tolerance) {
         RCLCPP_INFO(this->get_logger(), "Robot is moving");
@@ -150,7 +205,7 @@ private:
     }
     RCLCPP_INFO(this->get_logger(), "Robot is not moving");
     return false;
-  }
+  } */
 
   void processTask(const master_project_msgs::msg::Task& task)
   {
@@ -194,7 +249,7 @@ private:
         std::vector<double> one_pos(joint_positions.begin(), joint_positions.end());
         one_pos.push_back(1.0);  // velocity
         one_pos.push_back(1.2);  // acceleration
-        one_pos.push_back(0.005);  // blend (5mm tolerance)
+        one_pos.push_back(0.1);  // blend (5mm tolerance)
         robot_path.push_back(one_pos);
       }
 
@@ -216,6 +271,7 @@ private:
 
       std::this_thread::sleep_for(50ms);
     }
+    std::this_thread::sleep_for(std::chrono::seconds(1)); // Delay to simulate gripper motion time
   }
 
   double map_value(double value, double fromLow, double fromHigh, double toLow, double toHigh) {
@@ -231,11 +287,13 @@ private:
   void gripperOpen() {
     RCLCPP_INFO(this->get_logger(), "Opening gripper");
     gripper_->move(1.0); // Assuming 1.0 is the open position
+    std::this_thread::sleep_for(std::chrono::seconds(2)); // Delay to simulate gripper motion time
   }
 
   void gripperClose() {
     RCLCPP_INFO(this->get_logger(), "Closing gripper");
     gripper_->move(0.0); // Assuming 0.0 is the closed position
+    std::this_thread::sleep_for(std::chrono::seconds(2)); // Delay to simulate gripper motion time
   }
 };
 
